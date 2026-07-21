@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HandFree</string>
+    <string name="accessibility_service_label">HandFree 手勢控制</string>
+    <string name="accessibility_service_description">將已辨識的捏合與拖曳手勢轉換為系統手勢。HandFree 不會記錄或傳送相機畫面。</string>
+</resources>
+

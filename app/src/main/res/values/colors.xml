@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="canvas">#0B0F19</color>
+    <color name="canvas_secondary">#0D1117</color>
+    <color name="panel">#151C2B</color>
+    <color name="panel_stroke">#27354F</color>
+    <color name="text_primary">#E9F2FF</color>
+    <color name="text_secondary">#94A8C7</color>
+    <color name="cyan">#6366F1</color>
+    <color name="success">#00E676</color>
+    <color name="warning">#FFB020</color>
+    <color name="danger">#FF5470</color>
+</resources>
+

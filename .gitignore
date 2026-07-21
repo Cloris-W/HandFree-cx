@@ -1,0 +1,10 @@
+.gradle/
+.gradle-user/
+.gradle-verify/
+.idea/
+local.properties
+build/
+app/build/
+*.iml
+captures/
+tmp/

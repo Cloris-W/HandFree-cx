@@ -47,8 +47,9 @@ class HandOverlayCanvasView @JvmOverloads constructor(
     private var textContext: Context = context
 
     fun update(frame: GestureFrame) {
+        val stateChanged = this.frame.status != frame.status
         this.frame = frame
-        postInvalidateOnAnimation()
+        if (stateChanged) invalidate() else postInvalidateOnAnimation()
     }
 
     fun setRenderMode(mode: RenderMode) {
@@ -175,11 +176,9 @@ class HandOverlayCanvasView @JvmOverloads constructor(
     )
 
     private fun colorFor(status: HudStatus): Int = when (status) {
-        HudStatus.CLICK_ACTIVE, HudStatus.DRAG_ENGAGED -> ContextCompat.getColor(context, R.color.success)
-        HudStatus.DRAG_PREPARED -> Color.rgb(198, 120, 255)
-        HudStatus.CAMERA_ERROR, HudStatus.NO_FRONT_CAMERA, HudStatus.MODEL_ERROR, HudStatus.VISION_ERROR -> ContextCompat.getColor(context, R.color.danger)
-        HudStatus.SEARCHING, HudStatus.CAMERA_STARTING, HudStatus.MODEL_REQUIRED -> ContextCompat.getColor(context, R.color.warning)
-        HudStatus.TRACKING -> ContextCompat.getColor(context, R.color.cyan)
+        HudStatus.CLICK_ACTIVE -> COLOR_CLICK
+        HudStatus.DRAG_PREPARED, HudStatus.DRAG_ENGAGED -> COLOR_DRAG
+        else -> COLOR_NORMAL
     }
 
     private fun pointX(point: PointF): Float = point.x.coerceIn(0f, 1f) * width
@@ -187,6 +186,9 @@ class HandOverlayCanvasView @JvmOverloads constructor(
     private fun dp(value: Float): Float = value * resources.displayMetrics.density
 
     private companion object {
+        val COLOR_NORMAL: Int = Color.parseColor("#00E5FF")
+        val COLOR_CLICK: Int = Color.parseColor("#00E676")
+        val COLOR_DRAG: Int = Color.parseColor("#FFD700")
         val HAND_CONNECTIONS = arrayOf(
             0 to 1, 1 to 2, 2 to 3, 3 to 4,
             0 to 5, 5 to 6, 6 to 7, 7 to 8,

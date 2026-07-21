@@ -96,7 +96,9 @@ class GestureStateMachine(
 ) {
     companion object {
         private const val MIN_HAND_SCALE = 0.055f
-        private const val DRAG_MOTION_THRESHOLD = 0.006f
+        private const val DRAG_HYSTERESIS_FRAMES = 3
+        private const val DRAG_ENGAGE_DISTANCE = 0.010f
+        private const val DRAG_EMA_ALPHA = 0.3f
         private const val MIN_SWIPE_DISTANCE = 0.018f
         private const val WRIST_INDEX = 0
         private const val THUMB_TIP_INDEX = 4
@@ -118,6 +120,11 @@ class GestureStateMachine(
     private var previousFrameNanos = 0L
     private var clickLatched = false
     private var dragStartCursor: PointF? = null
+    private var dragFrameCount = 0
+    private var nonDragFrameCount = 0
+    private var dragEmaVector = PointF()
+    private var dragEmaSpeed = 0f
+    private var dragPathDistance = 0f
 
     fun updateSettings(updatedSettings: GestureSettings) {
         settings = updatedSettings.normalized()
@@ -147,44 +154,54 @@ class GestureStateMachine(
 
         val palmCenter = calculatePalmCenter(landmarks)
         val pinchDistance = distance(landmarks[THUMB_TIP_INDEX], landmarks[INDEX_TIP_INDEX]) / handScale
-        val thumbExtension = distance(landmarks[THUMB_TIP_INDEX], palmCenter) / handScale
-        val fingerClosure = listOf(INDEX_TIP_INDEX, MIDDLE_TIP_INDEX, RING_TIP_INDEX, PINKY_TIP_INDEX)
+        val thumbExtension = distance(landmarks[THUMB_TIP_INDEX], wrist) / handScale
+        val fingerClosure = intArrayOf(INDEX_TIP_INDEX, MIDDLE_TIP_INDEX, RING_TIP_INDEX, PINKY_TIP_INDEX)
             .maxOf { distance(landmarks[it], palmCenter) / handScale }
+        val fingersFoldedToMcp = arrayOf(
+            INDEX_TIP_INDEX to INDEX_MCP_INDEX,
+            MIDDLE_TIP_INDEX to MIDDLE_MCP_INDEX,
+            RING_TIP_INDEX to RING_MCP_INDEX,
+            PINKY_TIP_INDEX to PINKY_MCP_INDEX
+        ).all { (tipIndex, mcpIndex) ->
+            distance(landmarks[tipIndex], landmarks[mcpIndex]) / handScale <= activeSettings.fingerFoldThreshold
+        }
         val frameSpeed = if (elapsedNanos > 0L) {
             hypot(rawDeltaX, rawDeltaY) * 1_000_000_000f / elapsedNanos
         } else {
             0f
         }
         val motionVector = MotionVector(rawDeltaX, rawDeltaY, frameSpeed)
-        val dragPose = thumbExtension >= activeSettings.thumbExtensionThreshold &&
-            fingerClosure <= activeSettings.fingerFoldThreshold
-        val motionMagnitude = hypot(rawDeltaX, rawDeltaY)
+        val dragPose = thumbExtension >= activeSettings.thumbExtensionThreshold && fingersFoldedToMcp
 
-        when {
-            dragPose && state != GestureState.DRAG_ENGAGED && motionMagnitude >= DRAG_MOTION_THRESHOLD -> {
-                state = GestureState.DRAG_ENGAGED
-                dragStartCursor = cursorBeforeMove
-                clickLatched = false
+        if (dragPose) {
+            dragFrameCount = (dragFrameCount + 1).coerceAtMost(DRAG_HYSTERESIS_FRAMES)
+            nonDragFrameCount = 0
+            if (dragFrameCount >= DRAG_HYSTERESIS_FRAMES) {
+                if (state != GestureState.DRAG_PREPARED && state != GestureState.DRAG_ENGAGED) {
+                    beginDrag(cursorBeforeMove)
+                }
+                updateDragPath(rawDeltaX, rawDeltaY, frameSpeed)
+                if (state == GestureState.DRAG_PREPARED && dragPathDistance >= DRAG_ENGAGE_DISTANCE) {
+                    state = GestureState.DRAG_ENGAGED
+                }
             }
-            dragPose && state != GestureState.DRAG_ENGAGED -> {
-                state = GestureState.DRAG_PREPARED
-                clickLatched = false
-            }
-            !dragPose && state == GestureState.DRAG_ENGAGED -> {
-                dispatchSwipeIfMeaningful(cursor, frameSpeed)
-                state = GestureState.TRACKING
-            }
-            !dragPose && state == GestureState.DRAG_PREPARED -> {
-                state = GestureState.TRACKING
-            }
-            !dragPose && pinchDistance <= activeSettings.pinchThreshold -> {
+            clickLatched = false
+        } else {
+            dragFrameCount = 0
+            if (state == GestureState.DRAG_PREPARED || state == GestureState.DRAG_ENGAGED) {
+                nonDragFrameCount = (nonDragFrameCount + 1).coerceAtMost(DRAG_HYSTERESIS_FRAMES)
+                if (nonDragFrameCount >= DRAG_HYSTERESIS_FRAMES) {
+                    if (state == GestureState.DRAG_ENGAGED) dispatchSwipeIfMeaningful(cursor, frameSpeed)
+                    resetDragState()
+                    state = GestureState.TRACKING
+                }
+            } else if (pinchDistance <= activeSettings.pinchThreshold) {
                 if (!clickLatched) {
                     onAction(GestureAction.Click(cursor.copyPoint()))
                     clickLatched = true
                 }
                 state = GestureState.CLICK_ACTIVE
-            }
-            else -> {
+            } else {
                 clickLatched = false
                 state = GestureState.TRACKING
             }
@@ -206,21 +223,48 @@ class GestureStateMachine(
     }
 
     fun onNoHand(frameNanos: Long = System.nanoTime()): GestureTelemetry {
-        if (state == GestureState.DRAG_ENGAGED) dispatchSwipeIfMeaningful(cursor, 0f)
+        if (state == GestureState.DRAG_ENGAGED) dispatchSwipeIfMeaningful(cursor, dragEmaSpeed)
         state = GestureState.SEARCHING
         previousWrist = null
         previousFrameNanos = frameNanos
         clickLatched = false
+        resetDragState()
         return GestureTelemetry(cursor = cursor.copyPoint(), motionSensitivity = settings.motionSensitivity)
     }
 
     private fun dispatchSwipeIfMeaningful(endCursor: PointF, releaseSpeed: Float) {
         val startCursor = dragStartCursor ?: endCursor
-        dragStartCursor = null
         val distance = distance(startCursor, endCursor)
         if (distance < MIN_SWIPE_DISTANCE) return
-        val duration = swipeDurationForSpeed(releaseSpeed)
+        val duration = swipeDurationForSpeed(max(releaseSpeed, dragEmaSpeed))
         onAction(GestureAction.Swipe(startCursor.copyPoint(), endCursor.copyPoint(), duration))
+    }
+
+    private fun beginDrag(startCursor: PointF) {
+        state = GestureState.DRAG_PREPARED
+        dragStartCursor = startCursor.copyPoint()
+        dragEmaVector = PointF()
+        dragEmaSpeed = 0f
+        dragPathDistance = 0f
+        nonDragFrameCount = 0
+    }
+
+    private fun updateDragPath(rawDeltaX: Float, rawDeltaY: Float, rawSpeed: Float) {
+        dragEmaVector = PointF(
+            dragEmaVector.x + (rawDeltaX - dragEmaVector.x) * DRAG_EMA_ALPHA,
+            dragEmaVector.y + (rawDeltaY - dragEmaVector.y) * DRAG_EMA_ALPHA
+        )
+        dragEmaSpeed += (rawSpeed - dragEmaSpeed) * DRAG_EMA_ALPHA
+        dragPathDistance += hypot(dragEmaVector.x, dragEmaVector.y)
+    }
+
+    private fun resetDragState() {
+        dragStartCursor = null
+        dragFrameCount = 0
+        nonDragFrameCount = 0
+        dragEmaVector = PointF()
+        dragEmaSpeed = 0f
+        dragPathDistance = 0f
     }
 
     private fun calculatePalmCenter(landmarks: List<PointF>): PointF {

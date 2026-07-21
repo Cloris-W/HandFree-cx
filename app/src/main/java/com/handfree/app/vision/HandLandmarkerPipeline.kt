@@ -12,6 +12,7 @@ import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.handfree.app.model.HudStatus
 import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * MediaPipe live-stream adapter. The hand_landmarker.task model is intentionally an external
@@ -19,13 +20,15 @@ import java.nio.ByteBuffer
  */
 class HandLandmarkerPipeline(
     private val context: Context,
-    private val onLandmarks: (List<PointF>) -> Unit,
+    private val frameOrientationProvider: (Int) -> CameraFrameOrientation,
+    private val onLandmarks: (List<PointF>, CameraFrameOrientation) -> Unit,
     private val onNoHand: () -> Unit,
     private val onStatus: (HudStatus) -> Unit
 ) : ImageAnalysis.Analyzer, AutoCloseable {
     companion object { const val MODEL_FILE = "hand_landmarker.task" }
 
     private val landmarker: HandLandmarker? = createLandmarker()
+    private val latestFrameOrientation = AtomicReference(frameOrientationProvider(0))
 
     override fun analyze(image: ImageProxy) {
         val detector = landmarker ?: run {
@@ -33,6 +36,7 @@ class HandLandmarkerPipeline(
             return
         }
         try {
+            latestFrameOrientation.set(frameOrientationProvider(image.imageInfo.rotationDegrees))
             val mpImage = BitmapImageBuilder(image.toRgbaBitmap()).build()
             detector.detectAsync(mpImage, SystemClock.uptimeMillis())
         } catch (error: Exception) {
@@ -60,7 +64,7 @@ class HandLandmarkerPipeline(
                 .setNumHands(1)
                 .setResultListener { result, _ ->
                     val points = result.landmarks().firstOrNull()?.map { PointF(it.x(), it.y()) }.orEmpty()
-                    if (points.isEmpty()) onNoHand() else onLandmarks(points)
+                    if (points.isEmpty()) onNoHand() else onLandmarks(points, latestFrameOrientation.get())
                 }
                 .setErrorListener { onStatus(HudStatus.VISION_ERROR) }
                 .build()

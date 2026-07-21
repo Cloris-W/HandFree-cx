@@ -24,6 +24,11 @@ class HandOverlayCanvasView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
+    enum class RenderMode {
+        CURSOR_ONLY,
+        DIAGNOSTIC
+    }
+
     private val skeletonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(2f) }
     private val landmarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val cursorRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(3f) }
@@ -36,12 +41,18 @@ class HandOverlayCanvasView @JvmOverloads constructor(
     }
     private val badgeBounds = RectF()
     private var frame = GestureFrame()
+    private var renderMode = RenderMode.DIAGNOSTIC
     private var calibrationMode = false
     private var calibrationStep = 1
     private var textContext: Context = context
 
     fun update(frame: GestureFrame) {
         this.frame = frame
+        postInvalidateOnAnimation()
+    }
+
+    fun setRenderMode(mode: RenderMode) {
+        renderMode = mode
         postInvalidateOnAnimation()
     }
 
@@ -61,11 +72,15 @@ class HandOverlayCanvasView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val stateColor = colorFor(frame.status)
-        drawLandmarkSkeleton(canvas, stateColor)
-        drawTrajectoryArrow(canvas, stateColor)
+        if (renderMode == RenderMode.DIAGNOSTIC) {
+            drawLandmarkSkeleton(canvas, stateColor)
+            drawTrajectoryArrow(canvas, stateColor)
+        }
         drawCursor(canvas, stateColor)
-        drawStatusBadge(canvas, stateColor)
-        drawMetrics(canvas, stateColor)
+        if (renderMode == RenderMode.DIAGNOSTIC) {
+            drawStatusBadge(canvas, stateColor)
+            drawMetrics(canvas, stateColor)
+        }
     }
 
     private fun drawLandmarkSkeleton(canvas: Canvas, color: Int) {

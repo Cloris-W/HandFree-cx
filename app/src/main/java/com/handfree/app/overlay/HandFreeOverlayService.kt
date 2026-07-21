@@ -14,6 +14,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.camera.view.PreviewView
@@ -117,7 +118,9 @@ class HandFreeOverlayService : LifecycleService() {
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
             alpha = 0f
         }
-        val cursorOverlay = CursorOverlayView(this)
+        val cursorOverlay = CursorOverlayView(this).apply {
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        }
         root.addView(cursorOverlay, FrameLayout.LayoutParams(
             dp(48),
             dp(48),

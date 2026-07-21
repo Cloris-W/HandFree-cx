@@ -1,14 +1,13 @@
 package com.handfree.app.overlay
 
+import android.view.Choreographer
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import com.handfree.app.model.GestureFrame
 import com.handfree.app.model.GestureSettings
 
 /** Main-thread bridge between the vision pipeline and the overlay renderer. */
 object OverlayRuntime {
-    private const val FRAME_INTERVAL_MILLIS = 16L
     private val mainHandler = Handler(Looper.getMainLooper())
     private val renderLock = Any()
     @Volatile var isActive: Boolean = false
@@ -20,12 +19,11 @@ object OverlayRuntime {
     private var languageSink: ((String) -> Unit)? = null
     private var pendingFrame: GestureFrame? = null
     private var renderScheduled = false
-    private var lastRenderMillis = 0L
 
-    private val renderRunnable = Runnable {
+    private val frameCallback = Choreographer.FrameCallback {
         val frame = synchronized(renderLock) {
+            if (!renderScheduled) return@FrameCallback
             renderScheduled = false
-            lastRenderMillis = SystemClock.uptimeMillis()
             pendingFrame.also { pendingFrame = null }
         }
         frame?.let { renderer?.invoke(it) }
@@ -34,13 +32,19 @@ object OverlayRuntime {
         }
     }
 
+    private val renderRunnable = Runnable {
+        synchronized(renderLock) {
+            if (!renderScheduled) return@Runnable
+        }
+        Choreographer.getInstance().postFrameCallback(frameCallback)
+    }
+
     fun attach(renderer: (GestureFrame) -> Unit) {
         synchronized(renderLock) {
             this.renderer = renderer
             pendingFrame = lastFrame
             renderScheduled = false
-            lastRenderMillis = 0L
-            mainHandler.removeCallbacks(renderRunnable)
+            removeScheduledRenderLocked()
             scheduleRenderLocked()
         }
         isActive = true
@@ -51,7 +55,7 @@ object OverlayRuntime {
             renderer = null
             pendingFrame = null
             renderScheduled = false
-            mainHandler.removeCallbacks(renderRunnable)
+            removeScheduledRenderLocked()
         }
         settingsSink = null
         languageSink = null
@@ -83,9 +87,12 @@ object OverlayRuntime {
     }
 
     private fun scheduleRenderLocked() {
-        val elapsed = SystemClock.uptimeMillis() - lastRenderMillis
-        val delayMillis = (FRAME_INTERVAL_MILLIS - elapsed).coerceAtLeast(0L)
         renderScheduled = true
-        mainHandler.postDelayed(renderRunnable, delayMillis)
+        mainHandler.post(renderRunnable)
+    }
+
+    private fun removeScheduledRenderLocked() {
+        mainHandler.removeCallbacks(renderRunnable)
+        mainHandler.post { Choreographer.getInstance().removeFrameCallback(frameCallback) }
     }
 }

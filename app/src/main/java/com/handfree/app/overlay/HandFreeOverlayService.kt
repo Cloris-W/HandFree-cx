@@ -52,7 +52,6 @@ class HandFreeOverlayService : LifecycleService() {
         private const val KEY_FINGER_FOLD_THRESHOLD = "finger_fold_threshold"
         private const val PREF_AUTO_RECENTER_ENABLED = "auto_recenter_enabled"
         private const val PREF_IDLE_RECENTER_ENABLED = "idle_recenter_enabled"
-        private const val KEY_LANGUAGE_TAG = "language_tag"
         private const val LAYOUT_UPDATE_INTERVAL_MILLIS = 16L
         private const val IDLE_RECENTER_DELAY_MILLIS = 5_000L
         private const val IDLE_CURSOR_MOVEMENT_THRESHOLD = 0.002f
@@ -110,17 +109,19 @@ class HandFreeOverlayService : LifecycleService() {
     }
 
     private fun installOverlay() {
-        val root = FrameLayout(this)
+        val root = FrameLayout(this).apply {
+            clipChildren = false
+            clipToPadding = false
+        }
         val preview = PreviewView(this).apply {
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
             alpha = 0f
         }
-        val cursorOverlay = HandOverlayCanvasView(this).apply {
-            setRenderMode(HandOverlayCanvasView.RenderMode.CURSOR_ONLY)
-        }
+        val cursorOverlay = CursorOverlayView(this)
         root.addView(cursorOverlay, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
+            dp(48),
+            dp(48),
+            Gravity.TOP or Gravity.START
         ))
         root.addView(preview, FrameLayout.LayoutParams(1, 1, Gravity.TOP or Gravity.START))
 
@@ -141,9 +142,12 @@ class HandFreeOverlayService : LifecycleService() {
         overlayRoot = root
         overlayParams = params
         overlayBounds = displayBounds
-        OverlayRuntime.attach(cursorOverlay)
-        OverlayRuntime.bindLanguageSink(cursorOverlay::setLanguageTag)
-        cursorOverlay.setLanguageTag(readLanguageTag())
+        OverlayRuntime.attach { frame ->
+            val bounds = overlayBounds ?: currentDisplayBounds()
+            val screenWidth = root.width.takeIf { it > 0 } ?: bounds.width
+            val screenHeight = root.height.takeIf { it > 0 } ?: bounds.height
+            cursorOverlay.update(frame, screenWidth, screenHeight)
+        }
         val initialSettings = readGestureSettings()
         val autoRecenterEnabled = AtomicBoolean(initialSettings.autoRecenterEnabled)
         val idleRecenterEnabled = AtomicBoolean(initialSettings.idleRecenterEnabled)
@@ -292,9 +296,6 @@ class HandFreeOverlayService : LifecycleService() {
             idleRecenterEnabled = preferences.getBoolean(PREF_IDLE_RECENTER_ENABLED, false)
         ).normalized()
     }
-
-    private fun readLanguageTag(): String = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
-        .getString(KEY_LANGUAGE_TAG, "en") ?: "en"
 
     private fun translateToDisplayNormalized(
         landmark: PointF,

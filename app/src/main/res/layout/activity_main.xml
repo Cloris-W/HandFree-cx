@@ -56,13 +56,6 @@
                 android:textSize="11sp" />
         </LinearLayout>
 
-        <com.handfree.app.overlay.HandOverlayCanvasView
-            android:id="@+id/pipView"
-            android:layout_width="match_parent"
-            android:layout_height="220dp"
-            android:layout_marginTop="24dp"
-            android:background="@drawable/panel_background" />
-
         <TextView
             android:id="@+id/telemetryText"
             android:layout_width="match_parent"
@@ -93,36 +86,16 @@
             android:textStyle="bold"
             app:backgroundTint="@color/cyan" />
 
-        <LinearLayout
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/settingsButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="50dp"
             android:layout_marginTop="12dp"
-            android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/tutorialButton"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                android:text="@string/action_sandbox"
-                android:textAllCaps="false"
-                app:strokeColor="@color/cyan"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/settingsButton"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_marginStart="6dp"
-                android:layout_weight="1"
-                android:text="@string/action_settings"
-                android:textAllCaps="false"
-                app:strokeColor="@color/cyan"
-                android:textColor="@color/text_primary" />
-        </LinearLayout>
+            android:text="@string/action_settings"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            app:strokeColor="@color/cyan" />
 
         <LinearLayout
             android:layout_width="match_parent"

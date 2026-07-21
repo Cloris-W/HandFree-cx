@@ -53,7 +53,9 @@
     <string name="settings_title">設定</string>
     <string name="settings_motion_sensitivity">游標靈敏度</string>
     <string name="settings_motion_sensitivity_value">游標靈敏度：%1$.1f</string>
+    <string name="settings_thumb_extension">拇指伸展閾值</string>
     <string name="settings_thumb_extension_value">拇指伸展閾值：%1$.2f</string>
+    <string name="settings_finger_fold">手指收攏閾值</string>
     <string name="settings_finger_fold_value">手指收攏閾值：%1$.2f</string>
     <string name="settings_language">語言</string>
     <string name="language_english">英文</string>

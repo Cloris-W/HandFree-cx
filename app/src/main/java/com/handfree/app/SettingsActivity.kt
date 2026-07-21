@@ -26,6 +26,11 @@ class SettingsActivity : AppCompatActivity() {
         private const val SENSITIVITY_MIN = 0.5f
         private const val SENSITIVITY_STEP = 0.1f
         private const val SENSITIVITY_MAX_PROGRESS = 95
+        private const val THUMB_EXTENSION_MIN = 0.70f
+        private const val FINGER_FOLD_MIN = 0.35f
+        private const val GESTURE_THRESHOLD_STEP = 0.05f
+        private const val THUMB_EXTENSION_MAX_PROGRESS = 34
+        private const val FINGER_FOLD_MAX_PROGRESS = 25
     }
 
     private val preferences by lazy { getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE) }
@@ -42,6 +47,10 @@ class SettingsActivity : AppCompatActivity() {
 
         val sensitivityReadout = findViewById<TextView>(R.id.sensitivityReadout)
         val sensitivitySlider = findViewById<SeekBar>(R.id.sensitivitySlider)
+        val thumbExtensionReadout = findViewById<TextView>(R.id.thumbExtensionReadout)
+        val thumbExtensionSlider = findViewById<SeekBar>(R.id.thumbExtensionSlider)
+        val fingerFoldReadout = findViewById<TextView>(R.id.fingerFoldReadout)
+        val fingerFoldSlider = findViewById<SeekBar>(R.id.fingerFoldSlider)
         val autoRecenterSwitch = findViewById<SwitchCompat>(R.id.autoRecenterSwitch)
         val idleRecenterSwitch = findViewById<SwitchCompat>(R.id.idleRecenterSwitch)
         val languageSpinner = findViewById<Spinner>(R.id.languageSpinner)
@@ -52,6 +61,17 @@ class SettingsActivity : AppCompatActivity() {
             sensitivityReadout.text = getString(
                 R.string.settings_motion_sensitivity_value,
                 draftSettings.motionSensitivity
+            )
+        }
+
+        fun refreshGestureThresholdReadouts() {
+            thumbExtensionReadout.text = getString(
+                R.string.settings_thumb_extension_value,
+                draftSettings.thumbExtensionThreshold
+            )
+            fingerFoldReadout.text = getString(
+                R.string.settings_finger_fold_value,
+                draftSettings.fingerFoldThreshold
             )
         }
 
@@ -73,6 +93,41 @@ class SettingsActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
         })
         refreshSensitivityReadout()
+
+        thumbExtensionSlider.max = THUMB_EXTENSION_MAX_PROGRESS
+        thumbExtensionSlider.progress = ((draftSettings.thumbExtensionThreshold - THUMB_EXTENSION_MIN) /
+            GESTURE_THRESHOLD_STEP).toInt().coerceIn(0, THUMB_EXTENSION_MAX_PROGRESS)
+        thumbExtensionSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                draftSettings = draftSettings.copy(
+                    thumbExtensionThreshold = THUMB_EXTENSION_MIN + progress * GESTURE_THRESHOLD_STEP
+                )
+                refreshGestureThresholdReadouts()
+                OverlayRuntime.updateSettings(draftSettings)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+
+        fingerFoldSlider.max = FINGER_FOLD_MAX_PROGRESS
+        fingerFoldSlider.progress = ((draftSettings.fingerFoldThreshold - FINGER_FOLD_MIN) /
+            GESTURE_THRESHOLD_STEP).toInt().coerceIn(0, FINGER_FOLD_MAX_PROGRESS)
+        fingerFoldSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                draftSettings = draftSettings.copy(
+                    fingerFoldThreshold = FINGER_FOLD_MIN + progress * GESTURE_THRESHOLD_STEP
+                )
+                refreshGestureThresholdReadouts()
+                OverlayRuntime.updateSettings(draftSettings)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        refreshGestureThresholdReadouts()
 
         autoRecenterSwitch.isChecked = draftSettings.autoRecenterEnabled
         autoRecenterSwitch.setOnCheckedChangeListener { _, enabled ->

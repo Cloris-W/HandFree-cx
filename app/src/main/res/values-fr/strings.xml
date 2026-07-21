@@ -53,7 +53,9 @@
     <string name="settings_title">Paramètres</string>
     <string name="settings_motion_sensitivity">Sensibilité du curseur</string>
     <string name="settings_motion_sensitivity_value">Sensibilité du curseur : %1$.1f</string>
+    <string name="settings_thumb_extension">Seuil d\'extension du pouce</string>
     <string name="settings_thumb_extension_value">Seuil extension du pouce : %1$.2f</string>
+    <string name="settings_finger_fold">Seuil de pliage des doigts</string>
     <string name="settings_finger_fold_value">Seuil de pliage des doigts : %1$.2f</string>
     <string name="settings_language">Langue</string>
     <string name="language_english">Anglais</string>

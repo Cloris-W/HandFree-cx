@@ -18,6 +18,8 @@
         android:theme="@style/Theme.HandFree"
         android:usesCleartextTraffic="false">
 
+        <activity android:name=".SettingsActivity" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -48,4 +50,3 @@
     </application>
 
 </manifest>
-

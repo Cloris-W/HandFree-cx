@@ -34,6 +34,8 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_PINCH_THRESHOLD = "pinch_threshold"
         private const val KEY_THUMB_EXTENSION_THRESHOLD = "thumb_extension_threshold"
         private const val KEY_FINGER_FOLD_THRESHOLD = "finger_fold_threshold"
+        private const val PREF_AUTO_RECENTER_ENABLED = "auto_recenter_enabled"
+        private const val PREF_IDLE_RECENTER_ENABLED = "idle_recenter_enabled"
         private const val KEY_LANGUAGE_TAG = "language_tag"
         private const val UI_REFRESH_MILLIS = 120L
     }
@@ -129,7 +131,7 @@ class MainActivity : AppCompatActivity() {
         val foldReadout = createDialogText("")
         container.addView(instructions)
         container.addView(sensitivityReadout)
-        val sensitivitySlider = createSlider(25, ((draftSettings.motionSensitivity - 0.5f) * 10f).toInt()) { progress ->
+        val sensitivitySlider = createSlider(95, ((draftSettings.motionSensitivity - 0.5f) * 10f).toInt()) { progress ->
             draftSettings = draftSettings.copy(motionSensitivity = 0.5f + progress / 10f)
             sensitivityReadout.text = getString(R.string.settings_motion_sensitivity_value, draftSettings.motionSensitivity)
             OverlayRuntime.updateSettings(draftSettings)
@@ -173,43 +175,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openSettings() {
-        val savedSettings = readGestureSettings()
-        var draftSettings = savedSettings
-        val container = createDialogContainer()
-        val sensitivityReadout = createDialogText(getString(R.string.settings_motion_sensitivity_value, draftSettings.motionSensitivity))
-        container.addView(createDialogText(getString(R.string.settings_motion_sensitivity)))
-        container.addView(sensitivityReadout)
-        container.addView(createSlider(25, ((draftSettings.motionSensitivity - 0.5f) * 10f).toInt()) { progress ->
-            draftSettings = draftSettings.copy(motionSensitivity = 0.5f + progress / 10f)
-            sensitivityReadout.text = getString(R.string.settings_motion_sensitivity_value, draftSettings.motionSensitivity)
-            OverlayRuntime.updateSettings(draftSettings)
-        })
-        container.addView(createDialogText(getString(R.string.settings_language)))
-        val languageTags = arrayOf("en", "fr", "zh-TW")
-        val languageLabels = listOf(
-            getString(R.string.language_english),
-            getString(R.string.language_french),
-            getString(R.string.language_traditional_chinese)
-        )
-        val languageSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, languageLabels)
-            setSelection(languageTags.indexOf(currentLanguageTag()).coerceAtLeast(0))
-        }
-        container.addView(languageSpinner)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.settings_title)
-            .setView(container)
-            .setPositiveButton(R.string.action_save) { _, _ ->
-                saveGestureSettings(draftSettings)
-                val languageTag = languageTags[languageSpinner.selectedItemPosition]
-                preferences.edit().putString(KEY_LANGUAGE_TAG, languageTag).apply()
-                OverlayRuntime.updateLanguage(languageTag)
-                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
-            }
-            .setNegativeButton(R.string.action_cancel) { _, _ ->
-                OverlayRuntime.updateSettings(savedSettings)
-            }
-            .show()
+        startActivity(Intent(this, SettingsActivity::class.java))
     }
 
     private fun createDialogContainer(): LinearLayout = LinearLayout(this).apply {
@@ -238,7 +204,9 @@ class MainActivity : AppCompatActivity() {
         motionSensitivity = preferences.getFloat(KEY_MOTION_SENSITIVITY, 1.0f),
         pinchThreshold = preferences.getFloat(KEY_PINCH_THRESHOLD, 0.22f),
         thumbExtensionThreshold = preferences.getFloat(KEY_THUMB_EXTENSION_THRESHOLD, 1.20f),
-        fingerFoldThreshold = preferences.getFloat(KEY_FINGER_FOLD_THRESHOLD, 0.88f)
+        fingerFoldThreshold = preferences.getFloat(KEY_FINGER_FOLD_THRESHOLD, 0.88f),
+        autoRecenterEnabled = preferences.getBoolean(PREF_AUTO_RECENTER_ENABLED, false),
+        idleRecenterEnabled = preferences.getBoolean(PREF_IDLE_RECENTER_ENABLED, false)
     ).normalized()
 
     private fun saveGestureSettings(settings: GestureSettings) {
@@ -248,6 +216,8 @@ class MainActivity : AppCompatActivity() {
             .putFloat(KEY_PINCH_THRESHOLD, normalized.pinchThreshold)
             .putFloat(KEY_THUMB_EXTENSION_THRESHOLD, normalized.thumbExtensionThreshold)
             .putFloat(KEY_FINGER_FOLD_THRESHOLD, normalized.fingerFoldThreshold)
+            .putBoolean(PREF_AUTO_RECENTER_ENABLED, normalized.autoRecenterEnabled)
+            .putBoolean(PREF_IDLE_RECENTER_ENABLED, normalized.idleRecenterEnabled)
             .apply()
         OverlayRuntime.updateSettings(normalized)
     }

@@ -59,4 +59,12 @@
     <string name="language_english">English</string>
     <string name="language_french">French</string>
     <string name="language_traditional_chinese">Traditional Chinese</string>
+    <string name="color_legend_title">Cursor Color Legend</string>
+    <string name="color_legend_normal">• Cyan / Electric Blue: Normal Mode (Aiming / Moving cursor)</string>
+    <string name="color_legend_click">• Green: Click Mode (Pinch thumb &amp; index finger to trigger click)</string>
+    <string name="color_legend_drag">• Golden Yellow: Drag / Swipe Mode (Thumb extended + 4 fingers folded)</string>
+    <string name="pref_recenter_title">Auto-Recenter Cursor</string>
+    <string name="pref_recenter_summary">Automatically snap cursor to screen center after completing a click or drag action</string>
+    <string name="pref_idle_recenter_title">Recenter After 5 Seconds of Inactivity</string>
+    <string name="pref_idle_recenter_summary">Automatically return the cursor to screen center when it has not moved for 5 seconds</string>
 </resources>

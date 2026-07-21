@@ -49,10 +49,12 @@ data class GestureSettings(
     val motionSensitivity: Float = 1.0f,
     val pinchThreshold: Float = 0.22f,
     val thumbExtensionThreshold: Float = 1.20f,
-    val fingerFoldThreshold: Float = 0.88f
+    val fingerFoldThreshold: Float = 0.88f,
+    val autoRecenterEnabled: Boolean = false,
+    val idleRecenterEnabled: Boolean = false
 ) {
     fun normalized(): GestureSettings = copy(
-        motionSensitivity = motionSensitivity.coerceIn(0.5f, 3.0f),
+        motionSensitivity = motionSensitivity.coerceIn(0.5f, 10.0f),
         pinchThreshold = pinchThreshold.coerceIn(0.08f, 0.35f),
         thumbExtensionThreshold = thumbExtensionThreshold.coerceIn(0.70f, 2.40f),
         fingerFoldThreshold = fingerFoldThreshold.coerceIn(0.35f, 1.60f)
@@ -128,6 +130,12 @@ class GestureStateMachine(
 
     fun updateSettings(updatedSettings: GestureSettings) {
         settings = updatedSettings.normalized()
+    }
+
+    fun recenterCursor(): PointF {
+        cursor = PointF(0.5f, 0.5f)
+        previousWrist = null
+        return cursor.copyPoint()
     }
 
     fun onLandmarks(landmarks: List<PointF>, frameNanos: Long = System.nanoTime()): GestureTelemetry {

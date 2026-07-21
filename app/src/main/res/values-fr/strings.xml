@@ -59,4 +59,12 @@
     <string name="language_english">Anglais</string>
     <string name="language_french">Français</string>
     <string name="language_traditional_chinese">Chinois traditionnel</string>
+    <string name="color_legend_title">Légende des Couleurs du Curseur</string>
+    <string name="color_legend_normal">• Cyan / Bleu Électrique : Mode Normal (Visée / Déplacement du curseur)</string>
+    <string name="color_legend_click">• Vert : Mode Clic (Pincer le pouce et l\'index pour cliquer)</string>
+    <string name="color_legend_drag">• Jaune Doré : Mode Glisser / Balayer (Pouce étendu + 4 doigts repliés)</string>
+    <string name="pref_recenter_title">Recentrage Automatique du Curseur</string>
+    <string name="pref_recenter_summary">Replacer automatiquement le curseur au centre de l\'écran après un clic ou un glissement</string>
+    <string name="pref_idle_recenter_title">Recentrage Après 5 Secondes d\'Inactivité</string>
+    <string name="pref_idle_recenter_summary">Replacer automatiquement le curseur au centre de l\'écran après 5 secondes sans mouvement</string>
 </resources>

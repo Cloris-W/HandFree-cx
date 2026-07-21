@@ -23,6 +23,7 @@ import com.handfree.app.R
 import com.handfree.app.accessibility.HandFreeAccessibilityService
 import com.handfree.app.model.GestureFrame
 import com.handfree.app.model.GestureSettings
+import com.handfree.app.model.GestureState
 import com.handfree.app.model.GestureStateMachine
 import com.handfree.app.model.HudStatus
 import com.handfree.app.vision.CameraFrameOrientation
@@ -37,6 +38,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.hypot
 
 class HandFreeOverlayService : LifecycleService() {
     companion object {
@@ -47,8 +50,12 @@ class HandFreeOverlayService : LifecycleService() {
         private const val KEY_PINCH_THRESHOLD = "pinch_threshold"
         private const val KEY_THUMB_EXTENSION_THRESHOLD = "thumb_extension_threshold"
         private const val KEY_FINGER_FOLD_THRESHOLD = "finger_fold_threshold"
+        private const val PREF_AUTO_RECENTER_ENABLED = "auto_recenter_enabled"
+        private const val PREF_IDLE_RECENTER_ENABLED = "idle_recenter_enabled"
         private const val KEY_LANGUAGE_TAG = "language_tag"
         private const val LAYOUT_UPDATE_INTERVAL_MILLIS = 16L
+        private const val IDLE_RECENTER_DELAY_MILLIS = 5_000L
+        private const val IDLE_CURSOR_MOVEMENT_THRESHOLD = 0.002f
 
         fun start(context: Context) {
             val intent = Intent(context, HandFreeOverlayService::class.java)
@@ -65,6 +72,7 @@ class HandFreeOverlayService : LifecycleService() {
     private var overlayBounds: DisplayBounds? = null
     private var cameraModule: CameraModule? = null
     private var layoutUpdateJob: Job? = null
+    private var idleRecenterJob: Job? = null
     private var lastLayoutUpdateMillis = 0L
 
     override fun onCreate() {
@@ -136,11 +144,53 @@ class HandFreeOverlayService : LifecycleService() {
         OverlayRuntime.attach(cursorOverlay)
         OverlayRuntime.bindLanguageSink(cursorOverlay::setLanguageTag)
         cursorOverlay.setLanguageTag(readLanguageTag())
-        val stateMachine = GestureStateMachine(readGestureSettings()) { action ->
+        val initialSettings = readGestureSettings()
+        val autoRecenterEnabled = AtomicBoolean(initialSettings.autoRecenterEnabled)
+        val idleRecenterEnabled = AtomicBoolean(initialSettings.idleRecenterEnabled)
+        var previousGestureState = GestureState.SEARCHING
+        var latestFrame = GestureFrame(status = HudStatus.CAMERA_STARTING)
+        var lastCursorPosition = PointF(0.5f, 0.5f)
+        val stateMachine = GestureStateMachine(initialSettings) { action ->
             val currentBounds = currentDisplayBounds()
             HandFreeAccessibilityService.dispatch(action, currentBounds.width, currentBounds.height)
         }
-        OverlayRuntime.bindSettingsSink(stateMachine::updateSettings)
+
+        fun recenterFrame(frame: GestureFrame): GestureFrame {
+            val centeredCursor = stateMachine.recenterCursor()
+            return frame.copy(
+                telemetry = frame.telemetry.copy(
+                    cursor = centeredCursor,
+                    trajectoryStart = centeredCursor,
+                    trajectoryEnd = centeredCursor
+                )
+            )
+        }
+
+        fun restartIdleRecenterTimer() {
+            idleRecenterJob?.cancel()
+            if (!idleRecenterEnabled.get()) return
+            idleRecenterJob = processingScope.launch {
+                delay(IDLE_RECENTER_DELAY_MILLIS)
+                val recenteredFrame = stateMutex.withLock {
+                    if (!idleRecenterEnabled.get() || !isIdleRecenterEligible(latestFrame.telemetry.state)) {
+                        null
+                    } else {
+                        recenterFrame(latestFrame).also { frame ->
+                            latestFrame = frame
+                            lastCursorPosition = PointF(frame.telemetry.cursor.x, frame.telemetry.cursor.y)
+                        }
+                    }
+                }
+                recenteredFrame?.let(OverlayRuntime::publish)
+            }
+        }
+
+        OverlayRuntime.bindSettingsSink { updatedSettings ->
+            autoRecenterEnabled.set(updatedSettings.autoRecenterEnabled)
+            idleRecenterEnabled.set(updatedSettings.idleRecenterEnabled)
+            stateMachine.updateSettings(updatedSettings)
+            if (updatedSettings.idleRecenterEnabled) restartIdleRecenterTimer() else idleRecenterJob?.cancel()
+        }
         OverlayRuntime.publish(GestureFrame(status = HudStatus.CAMERA_STARTING))
         cameraModule = CameraModule(
             context = this,
@@ -148,30 +198,63 @@ class HandFreeOverlayService : LifecycleService() {
             previewView = preview,
             onLandmarks = { rawLandmarks, frameOrientation ->
                 processingScope.launch {
-                    val frame = stateMutex.withLock {
+                    val (frame, cursorMoved) = stateMutex.withLock {
                         val displayLandmarks = rawLandmarks.map { landmark ->
                             translateToDisplayNormalized(landmark, frameOrientation)
                         }
-                        val telemetry = stateMachine.onLandmarks(displayLandmarks)
-                        GestureFrame(
+                        var telemetry = stateMachine.onLandmarks(displayLandmarks)
+                        if (autoRecenterEnabled.get() && completesAction(previousGestureState, telemetry.state)) {
+                            telemetry = recenterFrame(GestureFrame(telemetry, displayLandmarks)).telemetry
+                        }
+                        previousGestureState = telemetry.state
+                        val nextFrame = GestureFrame(
                             telemetry,
                             displayLandmarks,
                             HudStatus.fromGestureState(telemetry.state)
                         )
+                        val moved = hasCursorMoved(lastCursorPosition, telemetry.cursor)
+                        if (moved) lastCursorPosition = PointF(telemetry.cursor.x, telemetry.cursor.y)
+                        latestFrame = nextFrame
+                        nextFrame to moved
                     }
+                    if (cursorMoved) restartIdleRecenterTimer()
                     OverlayRuntime.publish(frame)
                 }
             },
             onNoHand = {
                 processingScope.launch {
-                    val telemetry = stateMutex.withLock { stateMachine.onNoHand() }
-                    OverlayRuntime.publish(GestureFrame(telemetry, emptyList(), HudStatus.SEARCHING))
+                    val (frame, cursorMoved) = stateMutex.withLock {
+                        var telemetry = stateMachine.onNoHand()
+                        if (autoRecenterEnabled.get() && completesAction(previousGestureState, telemetry.state)) {
+                            telemetry = recenterFrame(GestureFrame(telemetry)).telemetry
+                        }
+                        previousGestureState = GestureState.SEARCHING
+                        val nextFrame = GestureFrame(telemetry, emptyList(), HudStatus.SEARCHING)
+                        val moved = hasCursorMoved(lastCursorPosition, telemetry.cursor)
+                        if (moved) lastCursorPosition = PointF(telemetry.cursor.x, telemetry.cursor.y)
+                        latestFrame = nextFrame
+                        nextFrame to moved
+                    }
+                    if (cursorMoved) restartIdleRecenterTimer()
+                    OverlayRuntime.publish(frame)
                 }
             },
             onStatus = { status ->
                 processingScope.launch {
-                    val telemetry = stateMutex.withLock { stateMachine.onNoHand() }
-                    OverlayRuntime.publish(GestureFrame(telemetry, emptyList(), status))
+                    val (frame, cursorMoved) = stateMutex.withLock {
+                        var telemetry = stateMachine.onNoHand()
+                        if (autoRecenterEnabled.get() && completesAction(previousGestureState, telemetry.state)) {
+                            telemetry = recenterFrame(GestureFrame(telemetry)).telemetry
+                        }
+                        previousGestureState = GestureState.SEARCHING
+                        val nextFrame = GestureFrame(telemetry, emptyList(), status)
+                        val moved = hasCursorMoved(lastCursorPosition, telemetry.cursor)
+                        if (moved) lastCursorPosition = PointF(telemetry.cursor.x, telemetry.cursor.y)
+                        latestFrame = nextFrame
+                        nextFrame to moved
+                    }
+                    if (cursorMoved) restartIdleRecenterTimer()
+                    OverlayRuntime.publish(frame)
                 }
             }
         ).also { it.bind() }
@@ -179,6 +262,7 @@ class HandFreeOverlayService : LifecycleService() {
 
     override fun onDestroy() {
         layoutUpdateJob?.cancel()
+        idleRecenterJob?.cancel()
         processingScope.cancel()
         cameraModule?.close()
         cameraModule = null
@@ -203,7 +287,9 @@ class HandFreeOverlayService : LifecycleService() {
             motionSensitivity = preferences.getFloat(KEY_MOTION_SENSITIVITY, 1.0f),
             pinchThreshold = preferences.getFloat(KEY_PINCH_THRESHOLD, 0.22f),
             thumbExtensionThreshold = preferences.getFloat(KEY_THUMB_EXTENSION_THRESHOLD, 1.20f),
-            fingerFoldThreshold = preferences.getFloat(KEY_FINGER_FOLD_THRESHOLD, 0.88f)
+            fingerFoldThreshold = preferences.getFloat(KEY_FINGER_FOLD_THRESHOLD, 0.88f),
+            autoRecenterEnabled = preferences.getBoolean(PREF_AUTO_RECENTER_ENABLED, false),
+            idleRecenterEnabled = preferences.getBoolean(PREF_IDLE_RECENTER_ENABLED, false)
         ).normalized()
     }
 
@@ -271,6 +357,18 @@ class HandFreeOverlayService : LifecycleService() {
         windowManager.defaultDisplay.getRealMetrics(metrics)
         return DisplayBounds(metrics.widthPixels, metrics.heightPixels)
     }
+
+    private fun completesAction(previous: GestureState, current: GestureState): Boolean =
+        (previous == GestureState.CLICK_ACTIVE && current != GestureState.CLICK_ACTIVE) ||
+            (previous == GestureState.DRAG_ENGAGED && current != GestureState.DRAG_ENGAGED)
+
+    private fun isIdleRecenterEligible(state: GestureState): Boolean =
+        state != GestureState.CLICK_ACTIVE &&
+            state != GestureState.DRAG_PREPARED &&
+            state != GestureState.DRAG_ENGAGED
+
+    private fun hasCursorMoved(previous: PointF, current: PointF): Boolean =
+        hypot(current.x - previous.x, current.y - previous.y) >= IDLE_CURSOR_MOVEMENT_THRESHOLD
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 

@@ -59,4 +59,12 @@
     <string name="language_english">英文</string>
     <string name="language_french">法文</string>
     <string name="language_traditional_chinese">繁體中文</string>
+    <string name="color_legend_title">光標顏色功能說明</string>
+    <string name="color_legend_normal">• 青藍色：一般模式（瞄準／移動光標）</string>
+    <string name="color_legend_click">• 綠色：點擊模式（大拇指與食指捏合以觸發點擊）</string>
+    <string name="color_legend_drag">• 金黃色：拖拽／滑動模式（大拇指伸直且其餘四指收緊）</string>
+    <string name="pref_recenter_title">動作後自動歸位至屏幕中心</string>
+    <string name="pref_recenter_summary">在每次完成點擊或拖拽動作後，自動將光標重置回螢幕中央</string>
+    <string name="pref_idle_recenter_title">5 秒未移動後自動歸位</string>
+    <string name="pref_idle_recenter_summary">當光標 5 秒未移動時，自動回到螢幕中心</string>
 </resources>

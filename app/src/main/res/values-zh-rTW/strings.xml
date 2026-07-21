@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HandFree</string>
+    <string name="accessibility_service_label">HandFree 手勢控制</string>
+    <string name="accessibility_service_description">將本機捏合與拇指拖曳手勢轉換為系統手勢。HandFree 不會記錄或傳送相機影像。</string>
+
+    <string name="notification_channel_name">HandFree 控制</string>
+    <string name="notification_title">HandFree 控制已啟動</string>
+    <string name="notification_text">前置鏡頭正在本機處理手勢</string>
+
+    <string name="brand_node">HANDFREE / 控制節點</string>
+    <string name="dashboard_title">無觸控手勢控制</string>
+    <string name="action_start">啟動 HandFree</string>
+    <string name="action_stop">停止 HandFree</string>
+    <string name="action_sandbox">即時沙盒</string>
+    <string name="action_settings">設定</string>
+    <string name="action_save">儲存</string>
+    <string name="action_cancel">取消</string>
+
+    <string name="hud_status_camera_starting">相機啟動中</string>
+    <string name="hud_status_searching">搜尋手勢</string>
+    <string name="hud_status_tracking">追蹤中</string>
+    <string name="hud_status_click_active">點擊啟用</string>
+    <string name="hud_status_drag_prepared">拖曳準備</string>
+    <string name="hud_status_drag_engaged">拖曳已啟用</string>
+    <string name="hud_status_camera_error">相機錯誤</string>
+    <string name="hud_status_no_front_camera">無前置鏡頭</string>
+    <string name="hud_status_model_required">需要模型</string>
+    <string name="hud_status_model_error">模型錯誤</string>
+    <string name="hud_status_vision_error">視覺錯誤</string>
+    <string name="hud_telemetry">狀態：%1$s | FPS：%2$02d | 比例：%3$.2f | 捏合：%4$.2f | 靈敏度：%5$.1f</string>
+    <string name="hud_telemetry_placeholder">狀態：搜尋手勢 | FPS：-- | 比例：-- | 捏合：-- | 靈敏度：--</string>
+    <string name="hud_metrics_primary">拇指：%1$.2f | 收攏：%2$.2f | 捏合：%3$.2f</string>
+    <string name="hud_metrics_secondary">向量：(%1$.3f, %2$.3f) | 靈敏度：%3$.1f</string>
+
+    <string name="permission_camera">相機</string>
+    <string name="permission_overlay">懸浮視窗</string>
+    <string name="permission_accessibility">無障礙手勢控制</string>
+    <string name="list_separator">、</string>
+    <string name="gate_running">控制服務運行中。游標、診斷資訊與相機預覽會在離開本 App 後維持可用。</string>
+    <string name="gate_ready">核心權限已就緒。啟動 HandFree 以啟用全域手勢控制。</string>
+    <string name="gate_missing">需要權限：%1$s。啟動按鈕會依序開啟對應的系統設定。</string>
+    <string name="toast_service_started">HandFree 已啟動。前置鏡頭處理只會在這台裝置上進行。</string>
+
+    <string name="gesture_protocol_title">手勢協定</string>
+    <string name="gesture_protocol_body">移動手腕即可令游標朝相同方向移動。捏合可立即點擊。伸出拇指並收攏其餘四指，接著移動並放開即可滑動。</string>
+
+    <string name="sandbox_title">即時校準沙盒</string>
+    <string name="sandbox_message">使用即時關鍵點、軌跡箭頭與顏色狀態標記，調整靈敏度與拇指拖曳姿勢後再回到全域控制。</string>
+    <string name="sandbox_step">校準步驟 %1$d / 3</string>
+    <string name="toast_calibration_saved">校準已儲存</string>
+
+    <string name="settings_title">設定</string>
+    <string name="settings_motion_sensitivity">游標靈敏度</string>
+    <string name="settings_motion_sensitivity_value">游標靈敏度：%1$.1f</string>
+    <string name="settings_thumb_extension_value">拇指伸展閾值：%1$.2f</string>
+    <string name="settings_finger_fold_value">手指收攏閾值：%1$.2f</string>
+    <string name="settings_language">語言</string>
+    <string name="language_english">英文</string>
+    <string name="language_french">法文</string>
+    <string name="language_traditional_chinese">繁體中文</string>
+</resources>

@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.Build
 import android.provider.Settings
@@ -17,13 +16,22 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import com.handfree.app.R
 import com.handfree.app.accessibility.HandFreeAccessibilityService
-import com.handfree.app.model.GestureEngine
+import com.handfree.app.model.GestureFrame
+import com.handfree.app.model.GestureSettings
+import com.handfree.app.model.GestureStateMachine
+import com.handfree.app.model.HudStatus
 import com.handfree.app.vision.CameraModule
 
 class HandFreeOverlayService : LifecycleService() {
     companion object {
         private const val CHANNEL_ID = "handfree_control"
         private const val NOTIFICATION_ID = 2105
+        private const val PREFERENCES_NAME = "handfree_settings"
+        private const val KEY_MOTION_SENSITIVITY = "motion_sensitivity"
+        private const val KEY_PINCH_THRESHOLD = "pinch_threshold"
+        private const val KEY_THUMB_EXTENSION_THRESHOLD = "thumb_extension_threshold"
+        private const val KEY_FINGER_FOLD_THRESHOLD = "finger_fold_threshold"
+        private const val KEY_LANGUAGE_TAG = "language_tag"
 
         fun start(context: Context) {
             val intent = Intent(context, HandFreeOverlayService::class.java)
@@ -42,8 +50,8 @@ class HandFreeOverlayService : LifecycleService() {
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_view)
-            .setContentTitle("HandFree 控制已啟動")
-            .setContentText("前鏡頭正在本機辨識手勢")
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(getString(R.string.notification_text))
             .setOngoing(true)
             .build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -68,10 +76,9 @@ class HandFreeOverlayService : LifecycleService() {
     private fun installOverlay() {
         val root = FrameLayout(this)
         val preview = PreviewView(this).apply {
-            setBackgroundColor(Color.argb(230, 11, 15, 25))
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
-        val cursorOverlay = HandFreeOverlayView(this)
+        val cursorOverlay = HandOverlayCanvasView(this)
         root.addView(cursorOverlay, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -96,14 +103,16 @@ class HandFreeOverlayService : LifecycleService() {
         windowManager.addView(root, params)
         overlayRoot = root
         OverlayRuntime.attach(cursorOverlay)
+        OverlayRuntime.bindLanguageSink(cursorOverlay::setLanguageTag)
+        cursorOverlay.setLanguageTag(readLanguageTag())
         val screen = resources.displayMetrics
-        val threshold = getSharedPreferences("handfree", MODE_PRIVATE)
-            .getFloat("pinch_threshold", GestureEngine.DEFAULT_PINCH_THRESHOLD)
-        val engine = GestureEngine(threshold) { action ->
+        val stateMachine = GestureStateMachine(readGestureSettings()) { action ->
             HandFreeAccessibilityService.dispatch(action, screen.widthPixels, screen.heightPixels)
         }
-        cameraModule = CameraModule(this, this, preview, engine) { telemetry, status ->
-            OverlayRuntime.publish(telemetry, status)
+        OverlayRuntime.bindSettingsSink(stateMachine::updateSettings)
+        OverlayRuntime.publish(GestureFrame(status = HudStatus.CAMERA_STARTING))
+        cameraModule = CameraModule(this, this, preview, stateMachine) { telemetry, landmarks, status ->
+            OverlayRuntime.publish(GestureFrame(telemetry, landmarks, status))
         }.also { it.bind() }
     }
 
@@ -118,10 +127,24 @@ class HandFreeOverlayService : LifecycleService() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "HandFree 控制", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, getString(R.string.notification_channel_name), NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
+    private fun readGestureSettings(): GestureSettings {
+        val preferences = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
+        return GestureSettings(
+            motionSensitivity = preferences.getFloat(KEY_MOTION_SENSITIVITY, 1.0f),
+            pinchThreshold = preferences.getFloat(KEY_PINCH_THRESHOLD, 0.22f),
+            thumbExtensionThreshold = preferences.getFloat(KEY_THUMB_EXTENSION_THRESHOLD, 1.20f),
+            fingerFoldThreshold = preferences.getFloat(KEY_FINGER_FOLD_THRESHOLD, 0.88f)
+        ).normalized()
+    }
+
+    private fun readLanguageTag(): String = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
+        .getString(KEY_LANGUAGE_TAG, "en") ?: "en"
+
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
 }

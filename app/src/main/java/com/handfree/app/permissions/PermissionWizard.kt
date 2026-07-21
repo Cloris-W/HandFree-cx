@@ -8,6 +8,7 @@ import android.os.Build
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import androidx.core.content.ContextCompat
+import com.handfree.app.R
 import com.handfree.app.accessibility.HandFreeAccessibilityService
 
 data class PermissionSnapshot(
@@ -17,11 +18,11 @@ data class PermissionSnapshot(
 ) {
     val ready: Boolean get() = cameraGranted && overlayGranted && accessibilityEnabled
 
-    fun summary(): String = buildList {
-        if (!cameraGranted) add("相機")
-        if (!overlayGranted) add("懸浮視窗")
-        if (!accessibilityEnabled) add("無障礙手勢控制")
-    }.joinToString("、")
+    fun summary(context: Context): String = buildList {
+        if (!cameraGranted) add(context.getString(R.string.permission_camera))
+        if (!overlayGranted) add(context.getString(R.string.permission_overlay))
+        if (!accessibilityEnabled) add(context.getString(R.string.permission_accessibility))
+    }.joinToString(context.getString(R.string.list_separator))
 }
 
 class PermissionWizard(private val context: Context) {
@@ -63,4 +64,3 @@ class PermissionWizard(private val context: Context) {
             }
     }
 }
-

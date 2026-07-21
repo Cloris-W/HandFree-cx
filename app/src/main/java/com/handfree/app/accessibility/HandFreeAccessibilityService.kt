@@ -3,7 +3,8 @@ package com.handfree.app.accessibility
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
-import android.graphics.PointF
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import com.handfree.app.model.GestureAction
 
@@ -12,7 +13,7 @@ class HandFreeAccessibilityService : AccessibilityService() {
         @Volatile private var instance: HandFreeAccessibilityService? = null
 
         fun dispatch(action: GestureAction, width: Int, height: Int) {
-            instance?.perform(action, width, height)
+            instance?.enqueue(action, width, height)
         }
     }
 
@@ -30,29 +31,18 @@ class HandFreeAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    private fun perform(action: GestureAction, width: Int, height: Int) {
-        val x = when (action) {
-            is GestureAction.Click -> action.x * width
-            is GestureAction.DragStart -> action.x * width
-            is GestureAction.DragMove -> action.x * width
-            GestureAction.DragEnd -> 0f
-        }
-        val y = when (action) {
-            is GestureAction.Click -> action.y * height
-            is GestureAction.DragStart -> action.y * height
-            is GestureAction.DragMove -> action.y * height
-            GestureAction.DragEnd -> 0f
-        }
+    private val mainHandler = Handler(Looper.getMainLooper())
 
-        when (action) {
-            is GestureAction.Click -> dispatchTap(x, y)
-            is GestureAction.DragStart -> dragPath = Path().apply { moveTo(x, y) }
-            is GestureAction.DragMove -> dragPath?.lineTo(x, y)
-            GestureAction.DragEnd -> dispatchDrag()
-        }
+    private fun enqueue(action: GestureAction, width: Int, height: Int) {
+        mainHandler.post { perform(action, width, height) }
     }
 
-    private var dragPath: Path? = null
+    private fun perform(action: GestureAction, width: Int, height: Int) {
+        when (action) {
+            is GestureAction.Click -> dispatchTap(action.position.x * width, action.position.y * height)
+            is GestureAction.Swipe -> dispatchSwipe(action, width, height)
+        }
+    }
 
     private fun dispatchTap(x: Float, y: Float) {
         val path = Path().apply { moveTo(x, y) }
@@ -65,16 +55,18 @@ class HandFreeAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun dispatchDrag() {
-        val path = dragPath ?: return
-        dragPath = null
+    private fun dispatchSwipe(action: GestureAction.Swipe, width: Int, height: Int) {
+        // Android screen coordinates use the same positive-down Y axis as normalized landmarks.
+        val path = Path().apply {
+            moveTo(action.start.x * width, action.start.y * height)
+            lineTo(action.end.x * width, action.end.y * height)
+        }
         dispatchGesture(
             GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(path, 0, 360))
+                .addStroke(GestureDescription.StrokeDescription(path, 0, action.durationMillis))
                 .build(),
             null,
             null
         )
     }
 }
-

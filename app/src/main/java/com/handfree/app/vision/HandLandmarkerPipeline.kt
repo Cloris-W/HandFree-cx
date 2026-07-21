@@ -10,6 +10,7 @@ import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
+import com.handfree.app.model.HudStatus
 import java.nio.ByteBuffer
 
 /**
@@ -20,7 +21,7 @@ class HandLandmarkerPipeline(
     private val context: Context,
     private val onLandmarks: (List<PointF>) -> Unit,
     private val onNoHand: () -> Unit,
-    private val onStatus: (String) -> Unit
+    private val onStatus: (HudStatus) -> Unit
 ) : ImageAnalysis.Analyzer, AutoCloseable {
     companion object { const val MODEL_FILE = "hand_landmarker.task" }
 
@@ -35,7 +36,7 @@ class HandLandmarkerPipeline(
             val mpImage = BitmapImageBuilder(image.toRgbaBitmap()).build()
             detector.detectAsync(mpImage, SystemClock.uptimeMillis())
         } catch (error: Exception) {
-            onStatus("VISION ERROR")
+            onStatus(HudStatus.VISION_ERROR)
         } finally {
             image.close()
         }
@@ -48,7 +49,7 @@ class HandLandmarkerPipeline(
     private fun createLandmarker(): HandLandmarker? {
         val modelPresent = runCatching { context.assets.list("")?.contains(MODEL_FILE) == true }.getOrDefault(false)
         if (!modelPresent) {
-            onStatus("MODEL REQUIRED")
+            onStatus(HudStatus.MODEL_REQUIRED)
             return null
         }
         return runCatching {
@@ -61,10 +62,10 @@ class HandLandmarkerPipeline(
                     val points = result.landmarks().firstOrNull()?.map { PointF(it.x(), it.y()) }.orEmpty()
                     if (points.isEmpty()) onNoHand() else onLandmarks(points)
                 }
-                .setErrorListener { onStatus("VISION ERROR") }
+                .setErrorListener { onStatus(HudStatus.VISION_ERROR) }
                 .build()
             HandLandmarker.createFromOptions(context, options)
-        }.onFailure { onStatus("MODEL ERROR") }.getOrNull()
+        }.onFailure { onStatus(HudStatus.MODEL_ERROR) }.getOrNull()
     }
 
     /** CameraX supplies RGBA_8888 frames; copy rows to account for device-specific padding. */

@@ -3,29 +3,53 @@ package com.handfree.app
 import android.Manifest
 import android.app.AlertDialog
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
+import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
+import androidx.core.os.LocaleListCompat
 import com.handfree.app.databinding.ActivityMainBinding
-import com.handfree.app.model.GestureEngine
+import com.handfree.app.model.GestureFrame
+import com.handfree.app.model.GestureSettings
+import com.handfree.app.model.HudStatus
 import com.handfree.app.overlay.HandFreeOverlayService
 import com.handfree.app.overlay.OverlayRuntime
 import com.handfree.app.permissions.PermissionWizard
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
+    companion object {
+        private const val PREFERENCES_NAME = "handfree_settings"
+        private const val KEY_MOTION_SENSITIVITY = "motion_sensitivity"
+        private const val KEY_PINCH_THRESHOLD = "pinch_threshold"
+        private const val KEY_THUMB_EXTENSION_THRESHOLD = "thumb_extension_threshold"
+        private const val KEY_FINGER_FOLD_THRESHOLD = "finger_fold_threshold"
+        private const val KEY_LANGUAGE_TAG = "language_tag"
+        private const val UI_REFRESH_MILLIS = 120L
+    }
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var permissionWizard: PermissionWizard
+    private val preferences by lazy { getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE) }
+    private val uiHandler = Handler(Looper.getMainLooper())
     private val requestCamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { refreshUi() }
     private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { refreshUi() }
+    private val uiTicker = object : Runnable {
+        override fun run() {
+            refreshUi()
+            uiHandler.postDelayed(this, UI_REFRESH_MILLIS)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,13 +58,19 @@ class MainActivity : AppCompatActivity() {
         permissionWizard = PermissionWizard(this)
 
         binding.startButton.setOnClickListener { continueStartFlow() }
-        binding.tutorialButton.setOnClickListener { openTutorial() }
-        binding.calibrateButton.setOnClickListener { openCalibration() }
+        binding.tutorialButton.setOnClickListener { openLiveCalibrationWizard() }
+        binding.settingsButton.setOnClickListener { openSettings() }
     }
 
     override fun onResume() {
         super.onResume()
-        refreshUi()
+        uiHandler.removeCallbacks(uiTicker)
+        uiHandler.post(uiTicker)
+    }
+
+    override fun onPause() {
+        uiHandler.removeCallbacks(uiTicker)
+        super.onPause()
     }
 
     private fun continueStartFlow() {
@@ -59,94 +89,193 @@ class MainActivity : AppCompatActivity() {
                     requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
                 HandFreeOverlayService.start(this)
-                Toast.makeText(this, "HandFree 已啟動，前鏡頭辨識只在本機執行。", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.toast_service_started), Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private fun refreshUi() {
         val snapshot = permissionWizard.snapshot()
-        val telemetry = OverlayRuntime.lastTelemetry
-        val status = if (OverlayRuntime.isActive) OverlayRuntime.lastStatus else "SEARCHING"
-        binding.statePill.text = status
-        binding.statePill.setTextColor(
-            ContextCompat.getColor(
-                this,
-                if (OverlayRuntime.isActive) R.color.success else if (snapshot.ready) R.color.cyan else R.color.warning
-            )
-        )
-        binding.telemetryText.text = String.format(
-            Locale.US,
-            "STATE: %s  |  FPS: %02d  |  SCALE: %.2f  |  PINCH: %.2f",
-            status,
+        val sourceFrame = OverlayRuntime.lastFrame
+        val status = if (OverlayRuntime.isActive) sourceFrame.status else HudStatus.SEARCHING
+        val displayedFrame = sourceFrame.copy(status = status)
+        val telemetry = displayedFrame.telemetry
+        binding.statePill.text = getString(statusTextResource(status))
+        binding.statePill.setTextColor(ContextCompat.getColor(this, statusColorResource(status, snapshot.ready)))
+        binding.telemetryText.text = getString(
+            R.string.hud_telemetry,
+            getString(statusTextResource(status)),
             telemetry.fps,
             telemetry.handScale,
-            telemetry.pinchDistance
+            telemetry.pinchDistance,
+            telemetry.motionSensitivity
         )
-        binding.pipView.render(telemetry)
+        binding.pipView.update(displayedFrame)
         binding.gateText.text = when {
-            OverlayRuntime.isActive -> "控制服務正在運行。回到其他 App 後，游標與遙測列會維持顯示。"
-            snapshot.ready -> "核心權限已就緒。按下「啟動 HandFree」開始全域手勢控制。"
-            else -> "需要授權：${snapshot.summary()}。按下啟動鈕會逐步開啟系統設定。"
+            OverlayRuntime.isActive -> getString(R.string.gate_running)
+            snapshot.ready -> getString(R.string.gate_ready)
+            else -> getString(R.string.gate_missing, snapshot.summary(this))
         }
-        binding.startButton.text = if (OverlayRuntime.isActive) "停止 HandFree" else "啟動 HandFree"
+        binding.startButton.text = getString(if (OverlayRuntime.isActive) R.string.action_stop else R.string.action_start)
     }
 
-    private fun openTutorial() {
-        val stages = arrayOf(
-            "Stage 1 - Aiming\n使用食指指尖移動游標，目標是平穩地停在圓環中。",
-            "Stage 2 - Pinch Click\n拇指與食指捏合，連續維持三幀以觸發一次點擊。",
-            "Stage 3 - Dragging\n張開手掌五幀進入拖曳；保持張開移動，收手後放開。"
-        )
-        AlertDialog.Builder(this)
-            .setTitle("互動式教學沙盒")
-            .setSingleChoiceItems(stages, 0) { dialog, selected ->
-                binding.pipView.selectSandboxStage(selected)
-                Toast.makeText(this, "已載入 Stage ${selected + 1}", Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
+    private fun openLiveCalibrationWizard() {
+        val savedSettings = readGestureSettings()
+        var draftSettings = savedSettings
+        val container = createDialogContainer()
+        val instructions = createDialogText(getString(R.string.sandbox_message))
+        val sensitivityReadout = createDialogText("")
+        val thumbReadout = createDialogText("")
+        val foldReadout = createDialogText("")
+        container.addView(instructions)
+        container.addView(sensitivityReadout)
+        val sensitivitySlider = createSlider(25, ((draftSettings.motionSensitivity - 0.5f) * 10f).toInt()) { progress ->
+            draftSettings = draftSettings.copy(motionSensitivity = 0.5f + progress / 10f)
+            sensitivityReadout.text = getString(R.string.settings_motion_sensitivity_value, draftSettings.motionSensitivity)
+            OverlayRuntime.updateSettings(draftSettings)
+        }
+        container.addView(sensitivitySlider)
+        container.addView(thumbReadout)
+        val thumbSlider = createSlider(34, ((draftSettings.thumbExtensionThreshold - 0.70f) * 20f).toInt()) { progress ->
+            draftSettings = draftSettings.copy(thumbExtensionThreshold = 0.70f + progress / 20f)
+            thumbReadout.text = getString(R.string.settings_thumb_extension_value, draftSettings.thumbExtensionThreshold)
+            OverlayRuntime.updateSettings(draftSettings)
+        }
+        container.addView(thumbSlider)
+        container.addView(foldReadout)
+        val foldSlider = createSlider(25, ((draftSettings.fingerFoldThreshold - 0.35f) * 20f).toInt()) { progress ->
+            draftSettings = draftSettings.copy(fingerFoldThreshold = 0.35f + progress / 20f)
+            foldReadout.text = getString(R.string.settings_finger_fold_value, draftSettings.fingerFoldThreshold)
+            OverlayRuntime.updateSettings(draftSettings)
+        }
+        container.addView(foldSlider)
+
+        fun refreshReadouts() {
+            sensitivityReadout.text = getString(R.string.settings_motion_sensitivity_value, draftSettings.motionSensitivity)
+            thumbReadout.text = getString(R.string.settings_thumb_extension_value, draftSettings.thumbExtensionThreshold)
+            foldReadout.text = getString(R.string.settings_finger_fold_value, draftSettings.fingerFoldThreshold)
+        }
+        refreshReadouts()
+        binding.pipView.setCalibrationMode(true, 1)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.sandbox_title)
+            .setView(container)
+            .setPositiveButton(R.string.action_save) { _, _ ->
+                saveGestureSettings(draftSettings)
+                Toast.makeText(this, getString(R.string.toast_calibration_saved), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("關閉", null)
+            .setNegativeButton(R.string.action_cancel) { _, _ ->
+                OverlayRuntime.updateSettings(savedSettings)
+            }
+            .create()
+        dialog.setOnDismissListener { binding.pipView.setCalibrationMode(false) }
+        dialog.show()
+    }
+
+    private fun openSettings() {
+        val savedSettings = readGestureSettings()
+        var draftSettings = savedSettings
+        val container = createDialogContainer()
+        val sensitivityReadout = createDialogText(getString(R.string.settings_motion_sensitivity_value, draftSettings.motionSensitivity))
+        container.addView(createDialogText(getString(R.string.settings_motion_sensitivity)))
+        container.addView(sensitivityReadout)
+        container.addView(createSlider(25, ((draftSettings.motionSensitivity - 0.5f) * 10f).toInt()) { progress ->
+            draftSettings = draftSettings.copy(motionSensitivity = 0.5f + progress / 10f)
+            sensitivityReadout.text = getString(R.string.settings_motion_sensitivity_value, draftSettings.motionSensitivity)
+            OverlayRuntime.updateSettings(draftSettings)
+        })
+        container.addView(createDialogText(getString(R.string.settings_language)))
+        val languageTags = arrayOf("en", "fr", "zh-TW")
+        val languageLabels = listOf(
+            getString(R.string.language_english),
+            getString(R.string.language_french),
+            getString(R.string.language_traditional_chinese)
+        )
+        val languageSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, languageLabels)
+            setSelection(languageTags.indexOf(currentLanguageTag()).coerceAtLeast(0))
+        }
+        container.addView(languageSpinner)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings_title)
+            .setView(container)
+            .setPositiveButton(R.string.action_save) { _, _ ->
+                saveGestureSettings(draftSettings)
+                val languageTag = languageTags[languageSpinner.selectedItemPosition]
+                preferences.edit().putString(KEY_LANGUAGE_TAG, languageTag).apply()
+                OverlayRuntime.updateLanguage(languageTag)
+                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
+            }
+            .setNegativeButton(R.string.action_cancel) { _, _ ->
+                OverlayRuntime.updateSettings(savedSettings)
+            }
             .show()
     }
 
-    private fun openCalibration() {
-        val preferences = getSharedPreferences("handfree", MODE_PRIVATE)
-        val current = preferences.getFloat("pinch_threshold", GestureEngine.DEFAULT_PINCH_THRESHOLD)
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(8), dp(24), 0)
-        }
-        val readout = TextView(this).apply {
-            gravity = Gravity.CENTER
-            textSize = 18f
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
-        }
-        val slider = SeekBar(this).apply {
-            max = 25
-            progress = ((current - 0.10f) * 100).toInt().coerceIn(0, 25)
-        }
-        fun update(value: Float) {
-            readout.text = String.format(Locale.US, "Pinch Threshold  %.2f", value)
-        }
-        update(current)
-        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = update(0.10f + progress / 100f)
+    private fun createDialogContainer(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(24), dp(8), dp(24), 0)
+    }
+
+    private fun createDialogText(text: String): TextView = TextView(this).apply {
+        this.text = text
+        setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+        textSize = 15f
+        setPadding(0, dp(8), 0, dp(4))
+    }
+
+    private fun createSlider(max: Int, progress: Int, onChange: (Int) -> Unit): SeekBar = SeekBar(this).apply {
+        this.max = max
+        this.progress = progress.coerceIn(0, max)
+        setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = onChange(progress)
             override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
             override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
         })
-        container.addView(readout)
-        container.addView(slider)
-        AlertDialog.Builder(this)
-            .setTitle("手勢校準")
-            .setMessage("調整拇指與食指距離的觸發值（範圍 0.10 - 0.35）。數值越小，越需要更緊的捏合。")
-            .setView(container)
-            .setPositiveButton("儲存") { _, _ ->
-                val value = 0.10f + slider.progress / 100f
-                preferences.edit().putFloat("pinch_threshold", value).apply()
-                Toast.makeText(this, "已儲存 ${String.format(Locale.US, "%.2f", value)}", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+    }
+
+    private fun readGestureSettings(): GestureSettings = GestureSettings(
+        motionSensitivity = preferences.getFloat(KEY_MOTION_SENSITIVITY, 1.0f),
+        pinchThreshold = preferences.getFloat(KEY_PINCH_THRESHOLD, 0.22f),
+        thumbExtensionThreshold = preferences.getFloat(KEY_THUMB_EXTENSION_THRESHOLD, 1.20f),
+        fingerFoldThreshold = preferences.getFloat(KEY_FINGER_FOLD_THRESHOLD, 0.88f)
+    ).normalized()
+
+    private fun saveGestureSettings(settings: GestureSettings) {
+        val normalized = settings.normalized()
+        preferences.edit()
+            .putFloat(KEY_MOTION_SENSITIVITY, normalized.motionSensitivity)
+            .putFloat(KEY_PINCH_THRESHOLD, normalized.pinchThreshold)
+            .putFloat(KEY_THUMB_EXTENSION_THRESHOLD, normalized.thumbExtensionThreshold)
+            .putFloat(KEY_FINGER_FOLD_THRESHOLD, normalized.fingerFoldThreshold)
+            .apply()
+        OverlayRuntime.updateSettings(normalized)
+    }
+
+    private fun currentLanguageTag(): String {
+        val selected = AppCompatDelegate.getApplicationLocales().toLanguageTags()
+        return if (selected.isBlank()) preferences.getString(KEY_LANGUAGE_TAG, "en") ?: "en" else selected
+    }
+
+    private fun statusTextResource(status: HudStatus): Int = when (status) {
+        HudStatus.CAMERA_STARTING -> R.string.hud_status_camera_starting
+        HudStatus.SEARCHING -> R.string.hud_status_searching
+        HudStatus.TRACKING -> R.string.hud_status_tracking
+        HudStatus.CLICK_ACTIVE -> R.string.hud_status_click_active
+        HudStatus.DRAG_PREPARED -> R.string.hud_status_drag_prepared
+        HudStatus.DRAG_ENGAGED -> R.string.hud_status_drag_engaged
+        HudStatus.CAMERA_ERROR -> R.string.hud_status_camera_error
+        HudStatus.NO_FRONT_CAMERA -> R.string.hud_status_no_front_camera
+        HudStatus.MODEL_REQUIRED -> R.string.hud_status_model_required
+        HudStatus.MODEL_ERROR -> R.string.hud_status_model_error
+        HudStatus.VISION_ERROR -> R.string.hud_status_vision_error
+    }
+
+    private fun statusColorResource(status: HudStatus, ready: Boolean): Int = when (status) {
+        HudStatus.CLICK_ACTIVE, HudStatus.DRAG_ENGAGED -> R.color.success
+        HudStatus.CAMERA_ERROR, HudStatus.NO_FRONT_CAMERA, HudStatus.MODEL_ERROR, HudStatus.VISION_ERROR -> R.color.danger
+        HudStatus.SEARCHING, HudStatus.CAMERA_STARTING, HudStatus.MODEL_REQUIRED -> if (ready) R.color.cyan else R.color.warning
+        HudStatus.TRACKING, HudStatus.DRAG_PREPARED -> R.color.cyan
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

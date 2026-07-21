@@ -9,8 +9,10 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import com.handfree.app.model.GestureEngine
+import android.graphics.PointF
+import com.handfree.app.model.GestureStateMachine
 import com.handfree.app.model.GestureTelemetry
+import com.handfree.app.model.HudStatus
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -18,8 +20,8 @@ class CameraModule(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
     private val previewView: PreviewView,
-    private val gestureEngine: GestureEngine,
-    private val onTelemetry: (GestureTelemetry, String) -> Unit
+    private val stateMachine: GestureStateMachine,
+    private val onTelemetry: (GestureTelemetry, List<PointF>, HudStatus) -> Unit
 ) : AutoCloseable {
     companion object {
         private const val TAG = "HandFreeCamera"
@@ -35,7 +37,7 @@ class CameraModule(
             runCatching {
                 provider = future.get()
                 check(provider?.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) == true) {
-                    "No front-facing camera is available on this device"
+                    "No front-facing camera is available"
                 }
                 val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 val analysis = ImageAnalysis.Builder()
@@ -44,9 +46,17 @@ class CameraModule(
                     .build()
                 pipeline = HandLandmarkerPipeline(
                     context = context,
-                    onLandmarks = { points -> onTelemetry(gestureEngine.onLandmarks(points), "TRACKING") },
-                    onNoHand = { onTelemetry(gestureEngine.onNoHand(), "SEARCHING") },
-                    onStatus = { status -> onTelemetry(gestureEngine.onNoHand(), status) }
+                    onLandmarks = { points ->
+                        val telemetry = stateMachine.onLandmarks(points)
+                        onTelemetry(telemetry, points, HudStatus.fromGestureState(telemetry.state))
+                    },
+                    onNoHand = {
+                        val telemetry = stateMachine.onNoHand()
+                        onTelemetry(telemetry, emptyList(), HudStatus.SEARCHING)
+                    },
+                    onStatus = { status ->
+                        onTelemetry(stateMachine.onNoHand(), emptyList(), status)
+                    }
                 )
                 analysis.setAnalyzer(cameraExecutor, pipeline!!)
                 provider?.unbindAll()
@@ -54,7 +64,12 @@ class CameraModule(
                 Log.i(TAG, "Front camera use cases are bound")
             }.onFailure { error ->
                 Log.e(TAG, "Unable to bind the front camera", error)
-                onTelemetry(gestureEngine.onNoHand(), "CAMERA ERROR")
+                val status = if (error.message?.contains("No front-facing", ignoreCase = true) == true) {
+                    HudStatus.NO_FRONT_CAMERA
+                } else {
+                    HudStatus.CAMERA_ERROR
+                }
+                onTelemetry(stateMachine.onNoHand(), emptyList(), status)
             }
         }, ContextCompat.getMainExecutor(context))
     }

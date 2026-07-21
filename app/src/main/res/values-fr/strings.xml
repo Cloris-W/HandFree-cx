@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HandFree</string>
+    <string name="accessibility_service_label">Contrôle gestuel HandFree</string>
+    <string name="accessibility_service_description">Convertit les pincements et gestes du pouce locaux en gestes système. HandFree ne conserve et ne transmet aucune image de la caméra.</string>
+
+    <string name="notification_channel_name">Contrôle HandFree</string>
+    <string name="notification_title">Le contrôle HandFree est actif</string>
+    <string name="notification_text">La caméra frontale traite les gestes localement</string>
+
+    <string name="brand_node">HANDFREE / NŒUD DE CONTRÔLE</string>
+    <string name="dashboard_title">Contrôle gestuel sans contact</string>
+    <string name="action_start">Démarrer HandFree</string>
+    <string name="action_stop">Arrêter HandFree</string>
+    <string name="action_sandbox">Bac à sable en direct</string>
+    <string name="action_settings">Paramètres</string>
+    <string name="action_save">Enregistrer</string>
+    <string name="action_cancel">Annuler</string>
+
+    <string name="hud_status_camera_starting">DÉMARRAGE_CAMÉRA</string>
+    <string name="hud_status_searching">RECHERCHE</string>
+    <string name="hud_status_tracking">SUIVI</string>
+    <string name="hud_status_click_active">CLIC_ACTIF</string>
+    <string name="hud_status_drag_prepared">GLISSER_PRÊT</string>
+    <string name="hud_status_drag_engaged">GLISSER_ACTIF</string>
+    <string name="hud_status_camera_error">ERREUR_CAMÉRA</string>
+    <string name="hud_status_no_front_camera">AUCUNE_CAMÉRA_FRONTALE</string>
+    <string name="hud_status_model_required">MODÈLE_REQUIS</string>
+    <string name="hud_status_model_error">ERREUR_MODÈLE</string>
+    <string name="hud_status_vision_error">ERREUR_VISION</string>
+    <string name="hud_telemetry">ÉTAT : %1$s | IPS : %2$02d | ÉCHELLE : %3$.2f | PINCEMENT : %4$.2f | SENS. : %5$.1f</string>
+    <string name="hud_telemetry_placeholder">ÉTAT : RECHERCHE | IPS : -- | ÉCHELLE : -- | PINCEMENT : -- | SENS. : --</string>
+    <string name="hud_metrics_primary">POUCE : %1$.2f | PLI : %2$.2f | PINCEMENT : %3$.2f</string>
+    <string name="hud_metrics_secondary">VECTEUR : (%1$.3f, %2$.3f) | SENS. : %3$.1f</string>
+
+    <string name="permission_camera">Caméra</string>
+    <string name="permission_overlay">Superposition</string>
+    <string name="permission_accessibility">Contrôle gestuel accessible</string>
+    <string name="list_separator">, </string>
+    <string name="gate_running">Le contrôle est actif. Le curseur, les diagnostics et la prévisualisation caméra restent disponibles hors de cette application.</string>
+    <string name="gate_ready">Les autorisations principales sont prêtes. Démarrez HandFree pour activer le contrôle gestuel global.</string>
+    <string name="gate_missing">Autorisations requises : %1$s. Le bouton de démarrage ouvre chaque réglage système successivement.</string>
+    <string name="toast_service_started">HandFree a démarré. Le traitement de la caméra frontale reste sur cet appareil.</string>
+
+    <string name="gesture_protocol_title">PROTOCOLE GESTUEL</string>
+    <string name="gesture_protocol_body">Déplacez votre poignet pour déplacer le curseur dans la même direction. Pincez pour un clic immédiat. Étendez le pouce, repliez les quatre autres doigts, puis bougez et relâchez pour balayer.</string>
+
+    <string name="sandbox_title">Bac à sable de calibration en direct</string>
+    <string name="sandbox_message">Utilisez les repères en direct, la flèche de trajectoire et le badge coloré pour régler la sensibilité et la pose du pouce avant de revenir au contrôle global.</string>
+    <string name="sandbox_step">ÉTAPE DE CALIBRATION %1$d / 3</string>
+    <string name="toast_calibration_saved">Calibration enregistrée</string>
+
+    <string name="settings_title">Paramètres</string>
+    <string name="settings_motion_sensitivity">Sensibilité du curseur</string>
+    <string name="settings_motion_sensitivity_value">Sensibilité du curseur : %1$.1f</string>
+    <string name="settings_thumb_extension_value">Seuil extension du pouce : %1$.2f</string>
+    <string name="settings_finger_fold_value">Seuil de pliage des doigts : %1$.2f</string>
+    <string name="settings_language">Langue</string>
+    <string name="language_english">Anglais</string>
+    <string name="language_french">Français</string>
+    <string name="language_traditional_chinese">Chinois traditionnel</string>
+</resources>

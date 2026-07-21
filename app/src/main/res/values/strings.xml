@@ -1,7 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">HandFree</string>
-    <string name="accessibility_service_label">HandFree 手勢控制</string>
-    <string name="accessibility_service_description">將已辨識的捏合與拖曳手勢轉換為系統手勢。HandFree 不會記錄或傳送相機畫面。</string>
-</resources>
+    <string name="accessibility_service_label">HandFree Gesture Control</string>
+    <string name="accessibility_service_description">Converts local pinch and thumb-drag gestures into system gestures. HandFree does not record or transmit camera frames.</string>
 
+    <string name="notification_channel_name">HandFree Control</string>
+    <string name="notification_title">HandFree control is active</string>
+    <string name="notification_text">The front camera is processing gestures locally</string>
+
+    <string name="brand_node">HANDFREE / CONTROL NODE</string>
+    <string name="dashboard_title">Touchless gesture control</string>
+    <string name="action_start">Start HandFree</string>
+    <string name="action_stop">Stop HandFree</string>
+    <string name="action_sandbox">Live sandbox</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+
+    <string name="hud_status_camera_starting">CAMERA_STARTING</string>
+    <string name="hud_status_searching">SEARCHING</string>
+    <string name="hud_status_tracking">TRACKING</string>
+    <string name="hud_status_click_active">CLICK_ACTIVE</string>
+    <string name="hud_status_drag_prepared">DRAG_PREPARED</string>
+    <string name="hud_status_drag_engaged">DRAG_ENGAGED</string>
+    <string name="hud_status_camera_error">CAMERA_ERROR</string>
+    <string name="hud_status_no_front_camera">NO_FRONT_CAMERA</string>
+    <string name="hud_status_model_required">MODEL_REQUIRED</string>
+    <string name="hud_status_model_error">MODEL_ERROR</string>
+    <string name="hud_status_vision_error">VISION_ERROR</string>
+    <string name="hud_telemetry">STATE: %1$s | FPS: %2$02d | SCALE: %3$.2f | PINCH: %4$.2f | SENS: %5$.1f</string>
+    <string name="hud_telemetry_placeholder">STATE: SEARCHING | FPS: -- | SCALE: -- | PINCH: -- | SENS: --</string>
+    <string name="hud_metrics_primary">THUMB: %1$.2f | FOLD: %2$.2f | PINCH: %3$.2f</string>
+    <string name="hud_metrics_secondary">VECTOR: (%1$.3f, %2$.3f) | SENS: %3$.1f</string>
+
+    <string name="permission_camera">Camera</string>
+    <string name="permission_overlay">Overlay</string>
+    <string name="permission_accessibility">Accessibility gesture control</string>
+    <string name="list_separator">, </string>
+    <string name="gate_running">Control is active. The cursor, diagnostics, and camera preview remain available outside this app.</string>
+    <string name="gate_ready">Core permissions are ready. Start HandFree to enable global gesture control.</string>
+    <string name="gate_missing">Required permissions: %1$s. The start button opens each system setting in sequence.</string>
+    <string name="toast_service_started">HandFree has started. Front camera processing stays on this device.</string>
+
+    <string name="gesture_protocol_title">GESTURE PROTOCOL</string>
+    <string name="gesture_protocol_body">Move your wrist to move the cursor in the same direction. Pinch for an immediate click. Extend the thumb while folding the other four fingers, then move and release to swipe.</string>
+
+    <string name="sandbox_title">Live calibration sandbox</string>
+    <string name="sandbox_message">Use the live landmarks, trajectory arrow, and color badge to tune sensitivity and the thumb-drag pose before returning to global control.</string>
+    <string name="sandbox_step">CALIBRATION STEP %1$d / 3</string>
+    <string name="toast_calibration_saved">Calibration saved</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_motion_sensitivity">Cursor sensitivity</string>
+    <string name="settings_motion_sensitivity_value">Cursor sensitivity: %1$.1f</string>
+    <string name="settings_thumb_extension_value">Thumb extension threshold: %1$.2f</string>
+    <string name="settings_finger_fold_value">Finger fold threshold: %1$.2f</string>
+    <string name="settings_language">Language</string>
+    <string name="language_english">English</string>
+    <string name="language_french">French</string>
+    <string name="language_traditional_chinese">Traditional Chinese</string>
+</resources>
